@@ -887,6 +887,7 @@
       updateCharts(fleetFiltered, bookingFiltered);
     }
 
+    // ✅ nuova logica per la dimensione flotta (media)
     function updateCards(fleetList, bookingList) {
       let fleetAverage = 0;
       let sumCanone = 0;
@@ -899,27 +900,24 @@
         cardAssicurazione.textContent = "–";
         cardCostoTotale.textContent = "–";
       } else {
-        const fleetByMonthKey = {};
+        // Totale flotta per mese (somma dei fleet_size di tutte le righe del mese)
+        const monthlyTotals = {};
+
         fleetList.forEach(d => {
           const k = groupKey(d.Year, d.Month);
-          if (!fleetByMonthKey[k]) fleetByMonthKey[k] = { total: 0, count: 0 };
-          fleetByMonthKey[k].total += d.fleet_size;
-          fleetByMonthKey[k].count += 1;
-        });
-        const perMonthAverages = Object.values(fleetByMonthKey).map(
-          v => v.total / v.count
-        );
-        fleetAverage = perMonthAverages.length
-          ? perMonthAverages.reduce((a, b) => a + b, 0) /
-            perMonthAverages.length
-          : 0;
+          if (!monthlyTotals[k]) monthlyTotals[k] = 0;
+          monthlyTotals[k] += d.fleet_size || 0;
 
-        sumCanone = fleetList.reduce(
-          (s, d) => s + (d.canone_imponibile || 0),
-          0
-        );
-        sumAss = fleetList.reduce((s, d) => s + (d.assicurazione || 0), 0);
-        sumTot = fleetList.reduce((s, d) => s + (d.costo_totale || 0), 0);
+          sumCanone += d.canone_imponibile || 0;
+          sumAss += d.assicurazione || 0;
+          sumTot += d.costo_totale ||
+            (d.canone_imponibile || 0) + (d.assicurazione || 0);
+        });
+
+        const monthValues = Object.values(monthlyTotals);
+        fleetAverage = monthValues.length
+          ? monthValues.reduce((a, b) => a + b, 0) / monthValues.length
+          : 0;
 
         cardFleetSize.textContent = formatFloat(fleetAverage, 1);
         cardCanone.textContent = formatCurrency(sumCanone);
@@ -927,6 +925,7 @@
         cardCostoTotale.textContent = formatCurrency(sumTot);
       }
 
+      // KPI booking
       let sumRev = 0;
       let sumDays = 0;
       let sumBookings = 0;
@@ -962,6 +961,7 @@
         }
       }
 
+      // se non c'è flotta ma solo booking, KPI dipendenti dalla flotta non hanno senso
       if (fleetList.length === 0 && bookingList.length > 0) {
         cardRevPerVehicle.textContent = "–";
         cardCostRevRatio.textContent = "–";
