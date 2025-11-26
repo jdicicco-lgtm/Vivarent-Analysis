@@ -141,7 +141,6 @@
       gap: 16px;
     }
 
-    /* Sidebar / Filters */
     .sidebar {
       background: rgba(15,23,42,0.95);
       border-radius: 18px;
@@ -239,7 +238,6 @@
       letter-spacing: 0.08em;
     }
 
-    /* Main content */
     .main {
       display: flex;
       flex-direction: column;
@@ -459,7 +457,6 @@
     </header>
 
     <main class="layout">
-      <!-- Sidebar: filtri -->
       <aside class="sidebar">
         <div class="sidebar-title">
           <span>Filtri dashboard</span>
@@ -509,9 +506,7 @@
         </div>
       </aside>
 
-      <!-- Main: cards + charts -->
       <section class="main">
-        <!-- Cards primarie -->
         <div class="cards">
           <div class="card">
             <div class="card-label">Dimensione flotta (media)</div>
@@ -551,7 +546,6 @@
           </div>
         </div>
 
-        <!-- Cards secondarie -->
         <div class="cards-row-secondary">
           <div class="card">
             <div class="card-label">Revenue</div>
@@ -591,7 +585,6 @@
           </div>
         </div>
 
-        <!-- Cards terziarie: nuovi KPI -->
         <div class="cards-row-tertiary">
           <div class="card">
             <div class="card-label">Cost/Rev ratio</div>
@@ -604,7 +597,6 @@
           </div>
         </div>
 
-        <!-- Charts principali -->
         <div class="charts">
           <div class="chart-card">
             <div class="chart-header">
@@ -637,7 +629,6 @@
           </div>
         </div>
 
-        <!-- Nuovo grafico: cost vs revenue per cargroup -->
         <div class="chart-card">
           <div class="chart-header">
             <div>
@@ -685,11 +676,25 @@
 
     function formatFloat(v, decimals = 1) {
       if (!isFinite(v)) return "0";
-      return v.toLocaleString("it-IT", { maximumFractionDigits: decimals, minimumFractionDigits: decimals });
+      return v.toLocaleString("it-IT", {
+        maximumFractionDigits: decimals,
+        minimumFractionDigits: decimals
+      });
     }
 
     function groupKey(y, m) {
-      return `${y}-${String(m).padStart(2,"0")}`;
+      return `${y}-${String(m).padStart(2, "0")}`;
+    }
+
+    // parse sicuro: sostituisce NaN con null prima del JSON.parse
+    function parseJsonSafe(text, label) {
+      try {
+        const cleaned = text.replace(/NaN/g, "null");
+        return JSON.parse(cleaned);
+      } catch (e) {
+        console.error(`Errore nel parsing di ${label}:`, e);
+        return [];
+      }
     }
 
     let fleetData = [];
@@ -710,7 +715,6 @@
     const acquisizioneSelect = document.getElementById("filter-acquisizione");
     const resetBtn = document.getElementById("btn-reset");
 
-    // Cards
     const cardFleetSize = document.getElementById("card-fleet-size");
     const cardCanone = document.getElementById("card-canone");
     const cardAssicurazione = document.getElementById("card-assicurazione");
@@ -728,41 +732,47 @@
     const chartCargroupNote = document.getElementById("chart-cargroup-note");
     const chartCargroupMeta = document.getElementById("chart-cargroup-meta");
 
+    // Carico i JSON come testo e li ripulisco dai NaN
     Promise.all([
-      fetch("fleet_agg.json").then(r => r.json()),
-      fetch("bookings_agg.json").then(r => r.json())
+      fetch("fleet_agg.json").then(r => r.text()),
+      fetch("bookings_agg.json").then(r => r.text())
     ])
-    .then(([fleet, bookings]) => {
-      fleetData = fleet.map(d => ({
-        Year: d.Year,
-        Month: d.Month,
-        TIPOLOGIA: d.TIPOLOGIA || null,
-        GRUPPO: d.GRUPPO || null,
-        ACQUISIZIONE: d.ACQUISIZIONE || null,
-        fleet_size: +d.fleet_size || 0,
-        canone_imponibile: +d.canone_imponibile || 0,
-        assicurazione: +d.assicurazione || 0,
-        costo_totale: +d.costo_totale || (+d.canone_imponibile || 0) + (+d.assicurazione || 0)
-      }));
+      .then(([fleetText, bookingsText]) => {
+        const fleet = parseJsonSafe(fleetText, "fleet_agg.json");
+        const bookings = parseJsonSafe(bookingsText, "bookings_agg.json");
 
-      bookingData = bookings.map(d => ({
-        Year: d.Year,
-        Month: d.Month,
-        TIPOLOGIA: d.TIPOLOGIA || null,
-        GRUPPO: d.GRUPPO || null,
-        ACQUISIZIONE: d.ACQUISIZIONE || null,
-        bookings: +d.bookings || 0,
-        revenue: +d.revenue || 0,
-        days: +d.days || 0,
-        rev_per_day: +d.rev_per_day || 0
-      }));
+        fleetData = fleet.map(d => ({
+          Year: d.Year,
+          Month: d.Month,
+          TIPOLOGIA: d.TIPOLOGIA || null,
+          GRUPPO: d.GRUPPO || null,
+          ACQUISIZIONE: d.ACQUISIZIONE || null,
+          fleet_size: +d.fleet_size || 0,
+          canone_imponibile: +d.canone_imponibile || 0,
+          assicurazione: +d.assicurazione || 0,
+          costo_totale:
+            +d.costo_totale ||
+            (+d.canone_imponibile || 0) + (+d.assicurazione || 0)
+        }));
 
-      initFilters();
-      applyFiltersAndUpdate();
-    })
-    .catch(err => {
-      console.error("Errore nel caricamento dei dati JSON:", err);
-    });
+        bookingData = bookings.map(d => ({
+          Year: d.Year,
+          Month: d.Month,
+          TIPOLOGIA: d.TIPOLOGIA || null,
+          GRUPPO: d.GRUPPO || null,
+          ACQUISIZIONE: d.ACQUISIZIONE || null,
+          bookings: +d.bookings || 0,
+          revenue: +d.revenue || 0,
+          days: +d.days || 0,
+          rev_per_day: +d.rev_per_day || 0
+        }));
+
+        initFilters();
+        applyFiltersAndUpdate();
+      })
+      .catch(err => {
+        console.error("Errore nel caricamento dei dati JSON:", err);
+      });
 
     function initFilters() {
       const years = new Set();
@@ -781,17 +791,17 @@
         if (d.ACQUISIZIONE) acquisizioni.add(d.ACQUISIZIONE);
       });
 
-      [...years].sort((a,b) => a-b).forEach(y => {
+      [...years].sort((a, b) => a - b).forEach(y => {
         const opt = document.createElement("option");
         opt.value = y;
         opt.textContent = y;
         yearSelect.appendChild(opt);
       });
 
-      [...months].sort((a,b) => a-b).forEach(m => {
+      [...months].sort((a, b) => a - b).forEach(m => {
         const opt = document.createElement("option");
         opt.value = m;
-        opt.textContent = `${String(m).padStart(2,"0")} - ${monthNames[m-1]}`;
+        opt.textContent = `${String(m).padStart(2, "0")} - ${monthNames[m - 1]}`;
         monthSelect.appendChild(opt);
       });
 
@@ -858,7 +868,8 @@
         if (filters.month && d.Month != filters.month) return false;
         if (filters.tipologia && d.TIPOLOGIA !== filters.tipologia) return false;
         if (filters.gruppo && d.GRUPPO !== filters.gruppo) return false;
-        if (filters.acquisizione && d.ACQUISIZIONE !== filters.acquisizione) return false;
+        if (filters.acquisizione && d.ACQUISIZIONE !== filters.acquisizione)
+          return false;
         return true;
       });
 
@@ -867,7 +878,8 @@
         if (filters.month && d.Month != filters.month) return false;
         if (filters.tipologia && d.TIPOLOGIA !== filters.tipologia) return false;
         if (filters.gruppo && d.GRUPPO !== filters.gruppo) return false;
-        if (filters.acquisizione && d.ACQUISIZIONE !== filters.acquisizione) return false;
+        if (filters.acquisizione && d.ACQUISIZIONE !== filters.acquisizione)
+          return false;
         return true;
       });
 
@@ -894,14 +906,20 @@
           fleetByMonthKey[k].total += d.fleet_size;
           fleetByMonthKey[k].count += 1;
         });
-        const perMonthAverages = Object.values(fleetByMonthKey).map(v => v.total / v.count);
+        const perMonthAverages = Object.values(fleetByMonthKey).map(
+          v => v.total / v.count
+        );
         fleetAverage = perMonthAverages.length
-          ? perMonthAverages.reduce((a,b) => a+b, 0) / perMonthAverages.length
+          ? perMonthAverages.reduce((a, b) => a + b, 0) /
+            perMonthAverages.length
           : 0;
 
-        sumCanone = fleetList.reduce((s,d) => s + d.canone_imponibile, 0);
-        sumAss = fleetList.reduce((s,d) => s + d.assicurazione, 0);
-        sumTot = fleetList.reduce((s,d) => s + d.costo_totale, 0);
+        sumCanone = fleetList.reduce(
+          (s, d) => s + (d.canone_imponibile || 0),
+          0
+        );
+        sumAss = fleetList.reduce((s, d) => s + (d.assicurazione || 0), 0);
+        sumTot = fleetList.reduce((s, d) => s + (d.costo_totale || 0), 0);
 
         cardFleetSize.textContent = formatFloat(fleetAverage, 1);
         cardCanone.textContent = formatCurrency(sumCanone);
@@ -920,16 +938,15 @@
         cardRevPerVehicle.textContent = "–";
         cardCostRevRatio.textContent = "–";
       } else {
-        sumRev = bookingList.reduce((s,d) => s + d.revenue, 0);
-        sumDays = bookingList.reduce((s,d) => s + d.days, 0);
-        sumBookings = bookingList.reduce((s,d) => s + d.bookings, 0);
+        sumRev = bookingList.reduce((s, d) => s + (d.revenue || 0), 0);
+        sumDays = bookingList.reduce((s, d) => s + (d.days || 0), 0);
+        sumBookings = bookingList.reduce((s, d) => s + (d.bookings || 0), 0);
         const revPerDay = sumDays > 0 ? sumRev / sumDays : 0;
 
         cardRevenue.textContent = formatCurrency(sumRev);
         cardRevPerDay.textContent = formatCurrency(revPerDay);
         cardBookings.textContent = formatNumber(sumBookings);
 
-        // Revenue per veicolo
         if (fleetAverage > 0 && sumRev > 0) {
           const revPerVehicle = sumRev / fleetAverage;
           cardRevPerVehicle.textContent = formatCurrency(revPerVehicle);
@@ -937,7 +954,6 @@
           cardRevPerVehicle.textContent = "–";
         }
 
-        // Cost/Rev ratio
         if (sumRev > 0 && sumTot > 0) {
           const ratio = (sumTot / sumRev) * 100;
           cardCostRevRatio.textContent = formatFloat(ratio, 1) + "%";
@@ -946,7 +962,6 @@
         }
       }
 
-      // Se non c'è flotta, azzera KPI dipendenti
       if (fleetList.length === 0 && bookingList.length > 0) {
         cardRevPerVehicle.textContent = "–";
         cardCostRevRatio.textContent = "–";
@@ -955,7 +970,9 @@
 
     function updateCharts(fleetList, bookingList) {
       const yearLabel = filters.year ? filters.year : "2024–2026";
-      const monthLabel = filters.month ? monthNames[parseInt(filters.month)-1] : "tutti i mesi";
+      const monthLabel = filters.month
+        ? monthNames[parseInt(filters.month) - 1]
+        : "tutti i mesi";
       const segLabel = [
         filters.tipologia || "tutte le tipologie",
         filters.gruppo || "tutti i gruppi",
@@ -966,31 +983,43 @@
       chartBookingMeta.textContent = `${yearLabel} · ${monthLabel}`;
       chartCargroupMeta.textContent = `Per GRUPPO · ${yearLabel}`;
 
-      // ---- Fleet chart ----
+      // Fleet chart
       if (fleetList.length === 0) {
-        Plotly.newPlot("chart-fleet", [], {
-          paper_bgcolor: "rgba(0,0,0,0)",
-          plot_bgcolor: "rgba(0,0,0,0)",
-          xaxis: { visible: false },
-          yaxis: { visible: false },
-          annotations: [{
-            text: "Nessun dato flotta per i filtri selezionati",
-            xref: "paper",
-            yref: "paper",
-            x: 0.5,
-            y: 0.5,
-            showarrow: false,
-            font: { color: "#9ca3af", size: 12 }
-          }],
-          margin: { t: 10, r: 10, b: 10, l: 10 }
-        }, {displayModeBar: false});
+        Plotly.newPlot(
+          "chart-fleet",
+          [],
+          {
+            paper_bgcolor: "rgba(0,0,0,0)",
+            plot_bgcolor: "rgba(0,0,0,0)",
+            xaxis: { visible: false },
+            yaxis: { visible: false },
+            annotations: [
+              {
+                text: "Nessun dato flotta per i filtri selezionati",
+                xref: "paper",
+                yref: "paper",
+                x: 0.5,
+                y: 0.5,
+                showarrow: false,
+                font: { color: "#9ca3af", size: 12 }
+              }
+            ],
+            margin: { t: 10, r: 10, b: 10, l: 10 }
+          },
+          { displayModeBar: false }
+        );
         chartFleetNote.textContent = segLabel;
       } else {
         const groupByMonth = {};
         fleetList.forEach(d => {
           const k = groupKey(d.Year, d.Month);
           if (!groupByMonth[k]) {
-            groupByMonth[k] = { Year: d.Year, Month: d.Month, fleet_size: 0, costo_totale: 0 };
+            groupByMonth[k] = {
+              Year: d.Year,
+              Month: d.Month,
+              fleet_size: 0,
+              costo_totale: 0
+            };
           }
           groupByMonth[k].fleet_size += d.fleet_size;
           groupByMonth[k].costo_totale += d.costo_totale;
@@ -999,7 +1028,7 @@
         const keys = Object.keys(groupByMonth).sort();
         const x = keys.map(k => {
           const o = groupByMonth[k];
-          return `${o.Year} ${monthNames[o.Month-1]}`;
+          return `${o.Year} ${monthNames[o.Month - 1]}`;
         });
         const fleetVals = keys.map(k => groupByMonth[k].fleet_size);
         const costVals = keys.map(k => groupByMonth[k].costo_totale);
@@ -1020,64 +1049,81 @@
           yaxis: "y2"
         };
 
-        Plotly.newPlot("chart-fleet", [barTrace, lineTrace], {
-          paper_bgcolor: "rgba(0,0,0,0)",
-          plot_bgcolor: "rgba(0,0,0,0)",
-          margin: { t: 10, r: 40, b: 40, l: 40 },
-          xaxis: {
-            tickangle: -35,
-            tickfont: { size: 10, color: "#9ca3af" }
+        Plotly.newPlot(
+          "chart-fleet",
+          [barTrace, lineTrace],
+          {
+            paper_bgcolor: "rgba(0,0,0,0)",
+            plot_bgcolor: "rgba(0,0,0,0)",
+            margin: { t: 10, r: 40, b: 40, l: 40 },
+            xaxis: {
+              tickangle: -35,
+              tickfont: { size: 10, color: "#9ca3af" }
+            },
+            yaxis: {
+              title: "Veicoli",
+              titlefont: { size: 11, color: "#9ca3af" },
+              tickfont: { size: 10, color: "#9ca3af" },
+              gridcolor: "#1f2937"
+            },
+            yaxis2: {
+              title: "Costo totale",
+              overlaying: "y",
+              side: "right",
+              titlefont: { size: 11, color: "#9ca3af" },
+              tickfont: { size: 10, color: "#9ca3af" },
+              gridcolor: "rgba(0,0,0,0)"
+            },
+            legend: {
+              orientation: "h",
+              y: 1.12,
+              x: 0,
+              font: { size: 10, color: "#e5e7eb" }
+            }
           },
-          yaxis: {
-            title: "Veicoli",
-            titlefont: { size: 11, color: "#9ca3af" },
-            tickfont: { size: 10, color: "#9ca3af" },
-            gridcolor: "#1f2937"
-          },
-          yaxis2: {
-            title: "Costo totale",
-            overlaying: "y",
-            side: "right",
-            titlefont: { size: 11, color: "#9ca3af" },
-            tickfont: { size: 10, color: "#9ca3af" },
-            gridcolor: "rgba(0,0,0,0)"
-          },
-          legend: {
-            orientation: "h",
-            y: 1.12,
-            x: 0,
-            font: { size: 10, color: "#e5e7eb" }
-          }
-        }, {displayModeBar: false});
+          { displayModeBar: false }
+        );
 
         chartFleetNote.textContent = segLabel;
       }
 
-      // ---- Booking chart ----
+      // Booking chart
       if (bookingList.length === 0) {
-        Plotly.newPlot("chart-booking", [], {
-          paper_bgcolor: "rgba(0,0,0,0)",
-          plot_bgcolor: "rgba(0,0,0,0)",
-          xaxis: { visible: false },
-          yaxis: { visible: false },
-          annotations: [{
-            text: "Nessun dato prenotazioni per i filtri selezionati",
-            xref: "paper",
-            yref: "paper",
-            x: 0.5,
-            y: 0.5,
-            showarrow: false,
-            font: { color: "#9ca3af", size: 12 }
-          }],
-          margin: { t: 10, r: 10, b: 10, l: 10 }
-        }, {displayModeBar: false});
+        Plotly.newPlot(
+          "chart-booking",
+          [],
+          {
+            paper_bgcolor: "rgba(0,0,0,0)",
+            plot_bgcolor: "rgba(0,0,0,0)",
+            xaxis: { visible: false },
+            yaxis: { visible: false },
+            annotations: [
+              {
+                text: "Nessun dato prenotazioni per i filtri selezionati",
+                xref: "paper",
+                yref: "paper",
+                x: 0.5,
+                y: 0.5,
+                showarrow: false,
+                font: { color: "#9ca3af", size: 12 }
+              }
+            ],
+            margin: { t: 10, r: 10, b: 10, l: 10 }
+          },
+          { displayModeBar: false }
+        );
         chartBookingNote.textContent = segLabel;
       } else {
         const groupByMonthB = {};
         bookingList.forEach(d => {
           const k = groupKey(d.Year, d.Month);
           if (!groupByMonthB[k]) {
-            groupByMonthB[k] = { Year: d.Year, Month: d.Month, bookings: 0, revenue: 0 };
+            groupByMonthB[k] = {
+              Year: d.Year,
+              Month: d.Month,
+              bookings: 0,
+              revenue: 0
+            };
           }
           groupByMonthB[k].bookings += d.bookings;
           groupByMonthB[k].revenue += d.revenue;
@@ -1086,7 +1132,7 @@
         const keysB = Object.keys(groupByMonthB).sort();
         const xB = keysB.map(k => {
           const o = groupByMonthB[k];
-          return `${o.Year} ${monthNames[o.Month-1]}`;
+          return `${o.Year} ${monthNames[o.Month - 1]}`;
         });
         const bookingsVals = keysB.map(k => groupByMonthB[k].bookings);
         const revenueVals = keysB.map(k => groupByMonthB[k].revenue);
@@ -1107,78 +1153,87 @@
           yaxis: "y2"
         };
 
-        Plotly.newPlot("chart-booking", [barTraceB, lineTraceB], {
-          paper_bgcolor: "rgba(0,0,0,0)",
-          plot_bgcolor: "rgba(0,0,0,0)",
-          margin: { t: 10, r: 40, b: 40, l: 40 },
-          xaxis: {
-            tickangle: -35,
-            tickfont: { size: 10, color: "#9ca3af" }
+        Plotly.newPlot(
+          "chart-booking",
+          [barTraceB, lineTraceB],
+          {
+            paper_bgcolor: "rgba(0,0,0,0)",
+            plot_bgcolor: "rgba(0,0,0,0)",
+            margin: { t: 10, r: 40, b: 40, l: 40 },
+            xaxis: {
+              tickangle: -35,
+              tickfont: { size: 10, color: "#9ca3af" }
+            },
+            yaxis: {
+              title: "Numero prenotazioni",
+              titlefont: { size: 11, color: "#9ca3af" },
+              tickfont: { size: 10, color: "#9ca3af" },
+              gridcolor: "#1f2937"
+            },
+            yaxis2: {
+              title: "Revenue",
+              overlaying: "y",
+              side: "right",
+              titlefont: { size: 11, color: "#9ca3af" },
+              tickfont: { size: 10, color: "#9ca3af" },
+              gridcolor: "rgba(0,0,0,0)"
+            },
+            legend: {
+              orientation: "h",
+              y: 1.12,
+              x: 0,
+              font: { size: 10, color: "#e5e7eb" }
+            }
           },
-          yaxis: {
-            title: "Numero prenotazioni",
-            titlefont: { size: 11, color: "#9ca3af" },
-            tickfont: { size: 10, color: "#9ca3af" },
-            gridcolor: "#1f2937"
-          },
-          yaxis2: {
-            title: "Revenue",
-            overlaying: "y",
-            side: "right",
-            titlefont: { size: 11, color: "#9ca3af" },
-            tickfont: { size: 10, color: "#9ca3af" },
-            gridcolor: "rgba(0,0,0,0)"
-          },
-          legend: {
-            orientation: "h",
-            y: 1.12,
-            x: 0,
-            font: { size: 10, color: "#e5e7eb" }
-          }
-        }, {displayModeBar: false});
+          { displayModeBar: false }
+        );
 
         chartBookingNote.textContent = segLabel;
       }
 
-      // ---- Nuovo: Cost vs Revenue per Cargroup ----
+      // Cost vs Revenue per Cargroup
       if (fleetList.length === 0 && bookingList.length === 0) {
-        Plotly.newPlot("chart-cargroup", [], {
-          paper_bgcolor: "rgba(0,0,0,0)",
-          plot_bgcolor: "rgba(0,0,0,0)",
-          xaxis: { visible: false },
-          yaxis: { visible: false },
-          annotations: [{
-            text: "Nessun dato per gruppi veicolo con i filtri selezionati",
-            xref: "paper",
-            yref: "paper",
-            x: 0.5,
-            y: 0.5,
-            showarrow: false,
-            font: { color: "#9ca3af", size: 12 }
-          }],
-          margin: { t: 10, r: 10, b: 10, l: 10 }
-        }, {displayModeBar: false});
+        Plotly.newPlot(
+          "chart-cargroup",
+          [],
+          {
+            paper_bgcolor: "rgba(0,0,0,0)",
+            plot_bgcolor: "rgba(0,0,0,0)",
+            xaxis: { visible: false },
+            yaxis: { visible: false },
+            annotations: [
+              {
+                text: "Nessun dato per gruppi veicolo con i filtri selezionati",
+                xref: "paper",
+                yref: "paper",
+                x: 0.5,
+                y: 0.5,
+                showarrow: false,
+                font: { color: "#9ca3af", size: 12 }
+              }
+            ],
+            margin: { t: 10, r: 10, b: 10, l: 10 }
+          },
+          { displayModeBar: false }
+        );
         chartCargroupNote.textContent = segLabel;
       } else {
         const agg = {};
 
-        // Costi per gruppo (flotta)
         fleetList.forEach(d => {
           const g = d.GRUPPO || "N.D.";
           if (!agg[g]) agg[g] = { gruppo: g, costo: 0, revenue: 0 };
-          agg[g].costo += d.costo_totale;
+          agg[g].costo += d.costo_totale || 0;
         });
 
-        // Revenue per gruppo (prenotazioni)
         bookingList.forEach(d => {
           const g = d.GRUPPO || "N.D.";
           if (!agg[g]) agg[g] = { gruppo: g, costo: 0, revenue: 0 };
-          agg[g].revenue += d.revenue;
+          agg[g].revenue += d.revenue || 0;
         });
 
         const groups = Object.values(agg);
-        // Ordina per revenue desc (se zero, per costo)
-        groups.sort((a,b) => {
+        groups.sort((a, b) => {
           if (b.revenue !== a.revenue) return b.revenue - a.revenue;
           return b.costo - a.costo;
         });
@@ -1204,37 +1259,42 @@
           yaxis: "y2"
         };
 
-        Plotly.newPlot("chart-cargroup", [barCost, lineRev], {
-          paper_bgcolor: "rgba(0,0,0,0)",
-          plot_bgcolor: "rgba(0,0,0,0)",
-          margin: { t: 10, r: 40, b: 50, l: 50 },
-          xaxis: {
-            title: "Gruppo veicolo",
-            titlefont: { size: 11, color: "#9ca3af" },
-            tickangle: -35,
-            tickfont: { size: 10, color: "#9ca3af" }
+        Plotly.newPlot(
+          "chart-cargroup",
+          [barCost, lineRev],
+          {
+            paper_bgcolor: "rgba(0,0,0,0)",
+            plot_bgcolor: "rgba(0,0,0,0)",
+            margin: { t: 10, r: 40, b: 50, l: 50 },
+            xaxis: {
+              title: "Gruppo veicolo",
+              titlefont: { size: 11, color: "#9ca3af" },
+              tickangle: -35,
+              tickfont: { size: 10, color: "#9ca3af" }
+            },
+            yaxis: {
+              title: "Costo totale",
+              titlefont: { size: 11, color: "#9ca3af" },
+              tickfont: { size: 10, color: "#9ca3af" },
+              gridcolor: "#1f2937"
+            },
+            yaxis2: {
+              title: "Revenue",
+              overlaying: "y",
+              side: "right",
+              titlefont: { size: 11, color: "#9ca3af" },
+              tickfont: { size: 10, color: "#9ca3af" },
+              gridcolor: "rgba(0,0,0,0)"
+            },
+            legend: {
+              orientation: "h",
+              y: 1.12,
+              x: 0,
+              font: { size: 10, color: "#e5e7eb" }
+            }
           },
-          yaxis: {
-            title: "Costo totale",
-            titlefont: { size: 11, color: "#9ca3af" },
-            tickfont: { size: 10, color: "#9ca3af" },
-            gridcolor: "#1f2937"
-          },
-          yaxis2: {
-            title: "Revenue",
-            overlaying: "y",
-            side: "right",
-            titlefont: { size: 11, color: "#9ca3af" },
-            tickfont: { size: 10, color: "#9ca3af" },
-            gridcolor: "rgba(0,0,0,0)"
-          },
-          legend: {
-            orientation: "h",
-            y: 1.12,
-            x: 0,
-            font: { size: 10, color: "#e5e7eb" }
-          }
-        }, {displayModeBar: false});
+          { displayModeBar: false }
+        );
 
         chartCargroupNote.textContent = segLabel;
       }
